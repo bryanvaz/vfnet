@@ -1,0 +1,256 @@
+#!/bin/bash
+
+NIC_DIR="/sys/class/net"
+LSPCI_OUTPUT=()
+
+# Declare the arrays to store NIC information
+declare -A physical_nics_device_path
+declare -A physical_nics_interface
+declare -A vf_nics_device_path
+declare -A vf_nics_interface
+declare -A vf_nics_parent
+declare -A lspci_raw_output
+declare -A parsed_lspci_output
+
+echo "------ Detecting network devices... ------"
+
+# Function to parse lspci output
+parse_lspci_output() {
+  local lspci_output=$1
+  local key value
+
+  while read -r line; do
+    if [[ $line == Slot:* ]]; then
+      key="Slot"
+      value="${line#*:}"
+    elif [[ $line == Class:* ]]; then
+      key="Class"
+      value="${line#*:}"
+    elif [[ $line == Vendor:* ]]; then
+      key="Vendor"
+      value="${line#*:}"
+    elif [[ $line == Device:* ]]; then
+      key="Device"
+      value="${line#*:}"
+    elif [[ $line == SVendor:* ]]; then
+      key="SVendor"
+      value="${line#*:}"
+    elif [[ $line == SDevice:* ]]; then
+      key="SDevice"
+      value="${line#*:}"
+    elif [[ $line == Rev:* ]]; then
+      key="Rev"
+      value="${line#*:}"
+    elif [[ $line == Driver:* ]]; then
+      key="Driver"
+      value="${line#*:}"
+    elif [[ $line == Module:* ]]; then
+      key="Module"
+      value="${line#*:}"
+    elif [[ $line == IOMMUGroup:* ]]; then
+      key="IOMMUGroup"
+      value="${line#*:}"
+    fi
+
+    if [[ -n $key ]]; then
+      parsed_lspci_output["$key"]="$value"
+    fi
+  done <<< "$lspci_output"
+}
+
+# Loop through each network device
+for device in $(ls "$NIC_DIR"); do
+  device_path="${NIC_DIR}/${device}"
+
+  # Check if the device is a physical NIC
+  if [ -d "${device_path}/device" ] && [ ! -L "${device_path}/device/physfn" ]; then
+    pci_address=$(basename "$(readlink -f "${device_path}/device")")
+
+    # Get the interface name for the physical NIC
+    interface=$(basename "$(readlink -f "${device_path}")")
+
+    # Store the NIC information in the physical_nics_device_path and physical_nics_interface arrays
+    physical_nics_device_path[$pci_address]="${device_path}"
+    physical_nics_interface[$pci_address]="${interface}"
+
+    # Call "lspci -vmmks XXX" to get raw output for the physical NIC
+    lspci_output=$(lspci -vmmks "$pci_address")
+    lspci_raw_output[$pci_address]="$lspci_output"
+    LSPCI_OUTPUT+=("$lspci_output")
+
+    # Print the parsed lspci output for the physical NIC
+    echo "Parsed Output for Physical NIC $pci_address:"
+    for key in "${!parsed_lspci_output[@]}"; do
+      printf "%-15s %s\n" "$key:" "${parsed_lspci_output[$key]}"
+    done
+    echo
+  fi
+
+  # Check if the device is a VF network device
+  if [ -d "${device_path}/device" ] && [ -L "${device_path}/device/physfn" ]; then
+    vf_pci_address=$(basename "$(readlink -f "${device_path}/device")")
+
+    # Get the VF interface name
+    vf_interface=$device
+
+    # Get the parent device path
+    parent_path=$(readlink -f "${device_path}/device/physfn")
+    parent_interface=$(basename "$parent_path")
+
+    # Store the VF NIC information and parent in the vf_nics_device_path, vf_nics_interface, and vf_nics_parent arrays
+    vf_nics_device_path[$vf_pci_address]="${device_path}"
+    vf_nics_interface[$vf_pci_address]="${vf_interface}"
+    vf_nics_parent[$vf_pci_address]="${parent_interface}"
+  fi
+done
+
+echo " - Detection Complete."
+
+# Count the number of physical NICs
+num_physical_nics=${#physical_nics_device_path[@]}
+
+# Print the number of physical NICs detected
+if [ "$num_physical_nics" -eq 0 ]; then
+  echo " - No physical NICs detected."
+elif [ "$num_physical_nics" -eq 1 ]; then
+  echo " - 1 physical NIC detected."
+else
+  echo " - $num_physical_nics physical NICs detected."
+fi
+
+# Count the number of VF NICs
+num_vf_nics=${#vf_nics_device_path[@]}
+
+# Print the number of VF NICs detected
+if [ "$num_vf_nics" -eq 0 ]; then
+  echo " - No VF network devices detected."
+elif [ "$num_vf_nics" -eq 1 ]; then
+  echo " - 1 VF network device detected."
+else
+  echo " - $num_vf_nics VF network devices detected."
+fi
+
+# Calculate the maximum lengths of pci_address, interface, and parent values for physical NICs
+max_pci_length=0
+max_interface_length=0
+max_device_length=0
+for pci_address in "${!physical_nics_device_path[@]}"; do
+  interface="${physical_nics_interface[$pci_address]}"
+
+  # Parse the lspci output for the physical NIC
+  parse_lspci_output "$lspci_output"
+  device="${parsed_lspci_output["Device"]}"
+
+  if [ ${#pci_address} -gt $max_pci_length ]; then
+    max_pci_length=${#pci_address}
+  fi
+  if [ ${#interface} -gt $max_interface_length ]; then
+    max_interface_length=${#interface}
+  fi
+  if [ ${#device} -gt $max_device_length ]; then
+    max_device_length=${#device}
+  fi
+done
+
+# Calculate the maximum lengths of pci_address, interface, and parent values for VF network devices
+max_vf_pci_length=0
+max_vf_interface_length=0
+max_vf_parent_length=0
+for vf_pci_address in "${!vf_nics_device_path[@]}"; do
+  vf_interface="${vf_nics_interface[$vf_pci_address]}"
+  vf_parent="${vf_nics_parent[$vf_pci_address]}"
+  if [ ${#vf_pci_address} -gt $max_vf_pci_length ]; then
+    max_vf_pci_length=${#vf_pci_address}
+  fi
+  if [ ${#vf_interface} -gt $max_vf_interface_length ]; then
+    max_vf_interface_length=${#vf_interface}
+  fi
+  if [ ${#vf_parent} -gt $max_vf_parent_length ]; then
+    max_vf_parent_length=${#vf_parent}
+  fi
+done
+
+# Measure the length of the values in the parent column
+max_parent_length=0
+for vf_parent in "${vf_nics_parent[@]}"; do
+  if [ ${#vf_parent} -gt $max_parent_length ]; then
+    max_parent_length=${#vf_parent}
+  fi
+done
+
+# Set the value of pci_length_column to the greater of either "14" or "max_pci_length+1"
+pci_length_column=$((max_pci_length + 2))
+if [ "$pci_length_column" -lt 14 ]; then
+  pci_length_column=14
+fi
+
+# Set the value of interface_length_column to the greater of either "12" or "max_interface_length+1"
+interface_length_column=$((max_interface_length + 1))
+if [ "$interface_length_column" -lt 12 ]; then
+  interface_length_column=12
+fi
+
+
+# Set the value of device_length_column to the greater of either "12" or "max_device_length+1"
+device_length_column=$((max_device_length + 1))
+if [ "$device_length_column" -lt 12 ]; then
+  device_length_column=12
+fi
+
+# Set the value of vf_pci_length_column to the greater of either "14" or "max_vf_pci_length+1"
+vf_pci_length_column=$((max_vf_pci_length + 2))
+if [ "$vf_pci_length_column" -lt 14 ]; then
+  vf_pci_length_column=14
+fi
+
+# Set the value of vf_interface_length_column to the greater of either "12" or "max_vf_interface_length+1"
+vf_interface_length_column=$((max_vf_interface_length + 1))
+if [ "$vf_interface_length_column" -lt 12 ]; then
+  vf_interface_length_column=12
+fi
+
+# Set the value of vf_parent_length_column to the greater of either "12" or "max_parent_length+1"
+vf_parent_length_column=$((max_parent_length + 2))
+if [ "$vf_parent_length_column" -lt 12 ]; then
+  vf_parent_length_column=12
+fi
+
+
+# Output the physical NICs table
+echo
+echo "Physical NICs:"
+printf "%-${pci_length_column}s %-${interface_length_column}s %-${device_length_column}s %s\n" "PCI BDF" "Interface" "Device" "Device Path"
+printf "%-${pci_length_column}s %-${interface_length_column}s %-${device_length_column}s %s\n" "=========" "=========" "======" "==========="
+for pci_address in "${!physical_nics_device_path[@]}"; do
+  interface="${physical_nics_interface[$pci_address]}"
+  device_path="${physical_nics_device_path[$pci_address]}"
+  lspci_output="${lspci_raw_output[$pci_address]}"
+
+  # Parse the lspci output for the physical NIC
+  parse_lspci_output "$lspci_output"
+  device="${parsed_lspci_output["Device"]}"
+
+  printf "%-${pci_length_column}s %-${interface_length_column}s %-${device_length_column}s %s\n" "$pci_address" "$interface" "$device" "$device_path"
+done
+echo
+
+
+# Print the VF network devices and their parent
+echo "VF Network Devices:"
+printf "%-${vf_pci_length_column}s %-${vf_interface_length_column}s %-${vf_parent_length_column}s %-${vf_parent_length_column}s %s\n" "PCI BDF" "Interface" "Parent" "Parent PCI" "Device Path"
+printf "%-${vf_pci_length_column}s %-${vf_interface_length_column}s %-${vf_parent_length_column}s %-${vf_parent_length_column}s %s\n" "=========" "=========" "======" "===========" "==========="
+for vf_pci_address in "${!vf_nics_device_path[@]}"; do
+  vf_interface="${vf_nics_interface[$vf_pci_address]}"
+  vf_device_path="${vf_nics_device_path[$vf_pci_address]}"
+  vf_parent="${vf_nics_parent[$vf_pci_address]}"
+  parent_interface=${physical_nics_interface[$vf_parent]:-"unknown"}
+  printf "%-${vf_pci_length_column}s %-${vf_interface_length_column}s %-${vf_parent_length_column}s %-${vf_parent_length_column}s %s\n" "$vf_pci_address" "$vf_interface" "$parent_interface" "$vf_parent" "$vf_device_path"
+done
+echo
+
+# Print the raw output of "lspci -vmmks XXX" for each physical NIC
+echo "Raw Output for Physical NICs:"
+for lspci_output in "${LSPCI_OUTPUT[@]}"; do
+  echo "----------------------------------------"
+  echo "$lspci_output"
+done

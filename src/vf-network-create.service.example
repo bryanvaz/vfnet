@@ -1,0 +1,25 @@
+# This service file is purely for example and debugging
+# The vfnet and the compiler do not use this file
+# when installing the service. The real text is embedded
+# in the python script
+[Unit]
+Description=Create VF Network Interfaces on boot
+# Requires=ifupdown-pre.service
+Wants=network.target
+After=local-fs.target network-pre.target network.target systemd-sysctl.service systemd-modules-load.service ifupdown-pre.service
+Before=shutdown.target network-online.target
+Conflicts=shutdown.target
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=network-online.target
+
+[Service]
+Type=oneshot
+# EnvironmentFile=-/etc/default/networking
+ExecStart=/bin/sh -c /sbin/vfup -a
+# ExecStart=/sbin/vfup -a --read-environment
+# ExecStop=/sbin/vfdown -a --read-environment
+RemainAfterExit=true
+TimeoutStartSec=5min
+

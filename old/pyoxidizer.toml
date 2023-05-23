@@ -1,0 +1,8 @@
+[app]
+name = "vfnet"
+version = "0.1.0"
+bundle_dir = "bundle"
+
+[[app.entry_points]]
+name = "vfnet"
+script = "src/__init__.py"

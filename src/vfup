@@ -1,0 +1,178 @@
+#!/bin/sh
+############################################################
+# 
+# VF network device configuration script
+#
+# Author: Bryan Vaz <bryan@bryanvaz.com>
+# Date Created: 2020-05-20
+# Last Modified: 2020-05-20
+#
+# This script is used to configure the number of VFs 
+# for a network interface. This should be symlinked 
+# to the /sbin directory for correct operation. 
+# The script is meant to be part of the servers startup 
+# system and lacks a number of key validations and 
+# controls to be used while the server is running.
+# 
+# Copyright (c) 2023 Bryan Vaz.
+#
+# This file is part of vfnet.
+# 
+# vfnet is free software: you can redistribute it and/or 
+# modify it under the terms of the GNU General Public 
+# License as published by the Free Software Foundation, 
+# either version 3 of the License, or (at your option) any 
+# later version.
+# 
+# vfnet is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty 
+# of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+# See the GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public 
+# License along with vfnet. If not, see 
+# <https://www.gnu.org/licenses/>. 
+#
+############################################################
+
+# Path to the settings file
+settings_filename="vf.config"
+# Get the resolved path of the script
+script_path="$(readlink -f "$0")"
+# Get the directory path of the script
+script_dir="$(dirname "$script_path")"
+# Set the settings file path relative to the script directory
+settings_file="${script_dir}/${settings_filename}"
+
+
+# Check if the user has specified the '-f' flag
+force_flag=false
+if [ "$1" = "-f" ]; then
+  force_flag=true
+fi
+
+# Check if the settings file exists
+if [ ! -f "$settings_file" ]; then
+  echo "Settings file not found: $settings_file"
+  exit 1
+fi
+
+# Read settings from the file
+while IFS= read -r line || [ -n "$line" ]; do
+  # Skip comments and empty lines
+  if [ -z "$line" ] || [ "${line#"#"}" != "$line" ]; then
+    continue
+  fi
+
+  # Split the line into interface and VF count
+  interface=$(echo "$line" | awk -F ":" '{print $1}')
+  vf_count=$(echo "$line" | awk -F ":" '{print $2}')
+
+  # Validate interface and VF count
+  if [ -z "$interface" ] || [ -z "$vf_count" ]; then
+    echo "Invalid line in settings file: $line"
+    continue
+  fi
+
+  # Configure VFs for the interface
+  echo "Configuring $vf_count VFs for interface $interface"
+
+  # Verify that the current user has permissions to edit root files
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Warning: User does not have root permissions to edit the files"
+    continue
+  fi
+
+  # Include additional check to ensure $vf_count is a number, output an error if it is not and continue to the next line
+  if ! [ "$vf_count" -eq "$vf_count" ] 2>/dev/null; then
+    echo "Error: Invalid VF count '$vf_count' for interface $interface"
+    continue
+  fi
+
+  # Verify that the network device exists in the '/sys/class/net/' by checking that the directory '/sys/class/net/$interface/device' exists
+  if [ ! -d "/sys/class/net/$interface/device" ]; then
+    echo "Error: Network device $interface does not exist"
+    continue
+  fi
+
+  # Verify that the network device is a physical NIC by checking that the directory '/sys/class/net/$interface/device/physfn' is not a link
+  if [ -L "/sys/class/net/$interface/device/physfn" ]; then
+    echo "Error: Network device $interface is not a physical NIC"
+    continue
+  fi
+
+  # Verify that the network device is using the PCI subsystem NIC by checking that the directory '/sys/class/net/$interface/device/subsystem' links to a path that has the base name 'pci'
+  if [ "$(basename "$(readlink "/sys/class/net/$interface/device/subsystem")")" != "pci" ]; then
+    echo "Error: Network device $interface is not using the PCI subsystem NIC"
+    continue
+  fi
+
+  # Verify that the network is able to receive configs to create VF devices by checking for the existence of the file at '/sys/class/net/$interface/device/sriov_totalvfs'
+  if [ ! -f "/sys/class/net/$interface/device/sriov_totalvfs" ]; then
+    echo "Error: Network device $interface does not support VF configuration"
+    continue
+  fi
+
+  # Verify that the number of VFs to be created is within the supported range
+  max_vfs=$(cat "/sys/class/net/$interface/device/sriov_totalvfs")
+  if [ "$vf_count" -gt "$max_vfs" ]; then
+    echo "Error: The requested number of VFs ($vf_count) for interface $interface exceeds the maximum supported value ($max_vfs)"
+    vf_count="$max_vfs"
+    echo "Number of VFs has been decreased to the maximum supported value: $vf_count"
+  fi
+
+  # Read the current number of VFs configured
+  current_vfs=$(cat "/sys/class/net/$interface/device/sriov_numvfs")
+
+  # Check if the number of VFs is already set to the requested number
+  if [ "$current_vfs" -eq "$vf_count" ]; then
+    echo "The number of VFs for interface $interface is already set to $vf_count"
+    continue
+  fi
+
+  # Check if the number of VFs is already set to a different value
+  if [ "$current_vfs" -ne 0 ]; then
+    if [ "$force_flag" = false ]; then
+      echo "Warning: The interface $interface already has VFs configured."
+      echo "Modifying the number of VFs will require destroying all existing VFs before configuring the new number of VFs."
+      echo "If you would like to continue, please call the vfup command again with the '-f' flag."
+      continue
+    else
+      echo "Forcing VF configuration from $current_vfs to $vf_count. This will remove all existing VFs. Please wait..."
+      echo 0 > "/sys/class/net/$interface/device/sriov_numvfs"
+
+      # Wait for existing VFs to be destroyed
+      for i in 1 2 3; do
+        sleep 10
+        remaining_links=$(ls -l /sys/class/net/$interface/device/virtfn* 2>/dev/null | wc -l)
+        if [ "$remaining_links" -eq 0 ]; then
+          echo "Existing VFs have been successfully destroyed."
+          break
+        elif [ "$i" -eq 3 ]; then
+          echo "Error: Could not destroy existing VFs after waiting 30 seconds. Please validate that the interface supports VFs and that the number of VFs requested is within the supported range."
+          continue
+        fi
+      done
+    fi
+  fi
+
+  # Create the specified number of VF devices
+  echo "Creating $vf_count VF devices for interface $interface"
+  echo "$vf_count" > "/sys/class/net/$interface/device/sriov_numvfs"
+
+  # Wait for VFs to be created
+  for i in 1 2 3; do
+    sleep 5
+    vf_links=$(ls -l /sys/class/net/$interface/device/virtfn* 2>/dev/null)
+    if [ -z "$vf_links" ]; then
+      if [ "$i" -eq 3 ]; then
+        echo "Error: VFs were not created after waiting for 15 seconds. Please validate that the interface supports VFs and that the number of VFs requested is within the supported range."
+        continue
+      fi
+    else
+      echo "VFs were created successfully for interface $interface"
+      break
+    fi
+  done
+
+done <"$settings_file"
