@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 ############################################################
 # 
 # VFnet. A Virtual Function manager for network devices
@@ -41,7 +39,7 @@ import list_vfs
 import text_help
 import sys
 
-version_number = 0.1
+version_number = "0.1.0"
 
 def print_help():
     """Prints the help information for vfnet"""
@@ -78,7 +76,7 @@ def print_help():
 
 def print_version():
     """Prints the version of vfnet"""
-    print("VFnet Version {}".format(version_number))
+    print("{}".format(version_number))
 
 def main():
     # The first parameter that is not a switch is the command
