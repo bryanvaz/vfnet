@@ -1,4 +1,4 @@
-# vfnet [![nvm version](https://img.shields.io/badge/version-v0.1.0-blue.svg)][4]
+# vfnet ![nvm version](https://img.shields.io/badge/version-v0.1.0-blue.svg)
 
 vfnet is a command-line tool for managing virtual functions (VFs) on network devices in Linux. It provides functionalities to list network devices, set the number of VFs for specific network devices, and persist the number of VFs across reboots. This allows you to use your network card as a hardware switch for your virtual machines and containers.
 
