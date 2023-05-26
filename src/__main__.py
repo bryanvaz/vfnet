@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 ############################################################
 # 
 # VFnet. A Virtual Function manager for network devices
