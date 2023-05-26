@@ -33,7 +33,7 @@ You can use the `vfnet` command-line tool to manage virtual functions on network
 
 If you install vfnet on your system, you can persist your vf configuration across reboots. Without this persistance, all VFs and their configurations will be lost on reboot
 
-- Install vfnet into path and install boot service
+- Install vfnet into $PATH and install boot-time service
   ```
   ./vfnet install
   ```
@@ -92,6 +92,31 @@ PCI BDF        Interface    Parent     Parent BDF     Device Path
 0000:02:10.4   enp1s0f0v2   enp1s0f0   0000:01:00.0   /sys/class/net/enp1s0f0v2
 0000:02:10.6   enp1s0f0v3   enp1s0f0   0000:01:00.0   /sys/class/net/enp1s0f0v3
 ```
+
+Columns:
+* PF Network Devices:
+  * PCI BDF: This is the PCI address of the device. This is the address you will use to pass the device through to a VM.
+  * Interface: This is the name of the interface as it appears in the Linux network stack.
+  * Subsystem: This is the subsystem name of the device. (For informational purposes, current vfnet filters out any nic that does not have a subsystem name of "pci")
+  * Description: This is the description of the device as reported by the kernel. Usually this is the name of the device as reported by the manufacturer.
+  * Driver: This is the driver that is currently bound to the device.
+  * Can VF?: This is a boolean value that indicates whether or not the device supports VFs based on `vfnet`'s detection results.
+  * Active VFs: This is the number of VFs that are currently configured for the device out of the max capable VFs.
+  * Config VFs: This is the number of VFs that are configured to be created on boot. If `N/A` is shown, then the PF has no VF configuration yet for boot time.
+  * IOMMU Grp: This is the IOMMU group that the device is in. This is useful for determining which devices can be passed through to a VM together.
+  * Device Path: This is the path to the device in sysfs. This is useful for debugging purposes.
+* VF Network Devices:
+  * Parent: This is the parent device of the VF.
+  * Parent BDF: This is the PCI address of the parent device.
+
+### Creating VFs
+
+To create VFs, you can use the `vfnet set` command. This command takes a single PF interface name, and the number of VFs you want to create for that PF. For example, to create 4 VFs for the PF `enp1s0f0` you would run:
+``` 
+vfnet set enp1s0f0 4
+```
+**WARNING:** If the device already has VFs configured, this command will delete all existing VFs and create the new number of VFs specified. This is because the Linux network stack does not support dynamically changing the number of VFs on a PF.
+
 
 ## Compatibility
 
