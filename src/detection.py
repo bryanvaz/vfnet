@@ -33,10 +33,7 @@
 import os
 import subprocess
 import copy
-import bcrypt
 import glob
-import hashlib
-import base64
 from typing import Dict
 
 import tables as tables
@@ -212,38 +209,10 @@ def detect_network_devices():
                 'device_path': device_path,
                 'mac_address': mac_address if mac_address else "unknown",
             }
-    for vf in _vf_nics.values():
+    
 
-        pf = _physical_nics[vf['parent_pci_address']]
-
-        # determine the vf number of the vf
-        vf_num = 0
-        virtfns = pf['virtfn']
-        for i in range(len(virtfns)):
-            if virtfns[i] == vf['pci_address']:
-                vf_num = i + 1
-                break
-
-        # Calculate deterministic salt based on device name
-        salt = base64.urlsafe_b64encode(hashlib.sha256(pf['device_name'].encode()).digest()).decode()[:23].replace('-', 'a').replace('_', 'b')
-        salt_str = '$2b${}${}'.format("12",salt)
-        # calculate bcrypted mac address
-        vf_mac_bcrypted = bcrypt.hashpw(f"${pf['mac_address']}v{vf_num}".encode(), salt_str.encode()).decode()
-        # calc the sha256 of the bcrypted mac address and show it in hex
-        vf_mac = (hashlib.sha256(vf_mac_bcrypted.encode()).hexdigest())[:12]
-        
-        # Force to LAA Unicast MAC Address
-        vf_mac_bytes = bytes.fromhex(vf_mac)
-        vf_mac_bytes = bytearray(vf_mac_bytes)
-        vf_mac_bytes[0] = (vf_mac_bytes[0] | 0b00000010) & 0b11111110
-        vf_mac_laa = vf_mac_bytes.hex()
-        vf_mac_formatted = ':'.join([vf_mac_laa[i:i+2] for i in range(0, len(vf_mac_laa), 2)])
-
-        vf['calc_mac_address'] = vf_mac_formatted
-
-
-        # print(" - Detection Complete.")
-        _detection_complete = True
+    # print(" - Detection Complete.")
+    _detection_complete = True
 
 
 def print_detection_results():
