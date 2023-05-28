@@ -33,6 +33,10 @@
 import os
 import subprocess
 import copy
+import bcrypt
+import glob
+import hashlib
+import base64
 from typing import Dict
 
 import tables as tables
@@ -105,7 +109,7 @@ def _get_mac_address(device: str) -> str:
     return mac_address
     
 def detect_network_devices():
-    global _detection_complete
+    global _detection_complete, _physical_nics, _vf_nics
     # print("------ Detecting network devices... ------")
 
     # Loop through each network device
@@ -160,6 +164,15 @@ def detect_network_devices():
                     key, value = line.strip().split(':', 1)
                     pci_data[key] = value.strip()
 
+                mac_address = _get_mac_address(interface)
+
+                # Catalog all the virtfn* files in the device's sysfs directory and the underlying pci address linked by the virtfn files
+                virtfn_files = glob.glob(os.path.join(device_path, "device", "virtfn*"))
+                virtfn = []
+                for virtfn_file in virtfn_files:
+                    virtfn_pci_address = os.path.basename(os.path.realpath(virtfn_file))
+                    virtfn.append(virtfn_pci_address)
+
                 # Store the NIC information in the _physical_nics dictionary
                 _physical_nics[pci_address] = {
                     'pci_address': pci_address,
@@ -170,9 +183,12 @@ def detect_network_devices():
                     'driver': pci_data.get('Driver','unknown'),
                     'module': pci_data.get('Module','unknown'),
                     'iommu_group': pci_data.get('IOMMUGroup','unknown'),
+                    'vendor': pci_data.get('Vendor','unknown'),
                     'sriov_capable': sriov_capable,
                     'sriov_numvfs': sriov_numvfs,
-                    'sriov_totalvfs': sriov_totalvfs
+                    'sriov_totalvfs': sriov_totalvfs,
+                    'mac_address': mac_address,
+                    'virtfn': virtfn
                 }
 
         # Check if the device is a VF network device
@@ -196,9 +212,38 @@ def detect_network_devices():
                 'device_path': device_path,
                 'mac_address': mac_address if mac_address else "unknown",
             }
+    for vf in _vf_nics.values():
 
-    # print(" - Detection Complete.")
-    _detection_complete = True
+        pf = _physical_nics[vf['parent_pci_address']]
+
+        # determine the vf number of the vf
+        vf_num = 0
+        virtfns = pf['virtfn']
+        for i in range(len(virtfns)):
+            if virtfns[i] == vf['pci_address']:
+                vf_num = i + 1
+                break
+
+        # Calculate deterministic salt based on device name
+        salt = base64.urlsafe_b64encode(hashlib.sha256(pf['device_name'].encode()).digest()).decode()[:23].replace('-', 'a').replace('_', 'b')
+        salt_str = '$2b${}${}'.format("12",salt)
+        # calculate bcrypted mac address
+        vf_mac_bcrypted = bcrypt.hashpw(f"${pf['mac_address']}v{vf_num}".encode(), salt_str.encode()).decode()
+        # calc the sha256 of the bcrypted mac address and show it in hex
+        vf_mac = (hashlib.sha256(vf_mac_bcrypted.encode()).hexdigest())[:12]
+        
+        # Force to LAA Unicast MAC Address
+        vf_mac_bytes = bytes.fromhex(vf_mac)
+        vf_mac_bytes = bytearray(vf_mac_bytes)
+        vf_mac_bytes[0] = (vf_mac_bytes[0] | 0b00000010) & 0b11111110
+        vf_mac_laa = vf_mac_bytes.hex()
+        vf_mac_formatted = ':'.join([vf_mac_laa[i:i+2] for i in range(0, len(vf_mac_laa), 2)])
+
+        vf['calc_mac_address'] = vf_mac_formatted
+
+
+        # print(" - Detection Complete.")
+        _detection_complete = True
 
 
 def print_detection_results():
@@ -278,7 +323,6 @@ def print_vf_nics():
             nic['parent_interface'] = parent['interface']
         else:
             nic['parent_interface'] = 'Unknown'
-        nic['mac_address'] = _get_mac_address(nic['device_path'])
         
 
     # Define the keys and headers for the VF network devices table
