@@ -7,7 +7,8 @@ FROM python:3
 RUN apt-get update && \
     apt-get install -y build-essential && \
     # Add any other system dependencies needed for the build here \
-    pip install pyinstaller
+    pip install pyinstaller \
+        bcrypt
 
 # Set the working directory
 WORKDIR /app

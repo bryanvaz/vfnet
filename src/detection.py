@@ -3,8 +3,8 @@
 # Detection Library
 #
 # Author: Bryan Vaz <bryan@bryanvaz.com>
-# Date Created: 2020-05-20
-# Last Modified: 2020-05-20
+# Date Created: 2023-05-20
+# Last Modified: 2023-05-28
 #
 # The methods in this library help with detecting the
 # current status of the VFs on the server.
@@ -33,6 +33,7 @@
 import os
 import subprocess
 import copy
+import glob
 from typing import Dict
 
 import tables as tables
@@ -96,8 +97,16 @@ def get_pf(network_device):
             return copy.deepcopy(nic)
     return None
 
+def _get_mac_address(device: str) -> str:
+    """
+    Returns the MAC address of the specified VF network device.
+    """
+    with open(f'/sys/class/net/{device}/address', 'r') as f:
+        mac_address = f.read().strip()
+    return mac_address
+    
 def detect_network_devices():
-    global _detection_complete
+    global _detection_complete, _physical_nics, _vf_nics
     # print("------ Detecting network devices... ------")
 
     # Loop through each network device
@@ -152,19 +161,31 @@ def detect_network_devices():
                     key, value = line.strip().split(':', 1)
                     pci_data[key] = value.strip()
 
+                mac_address = _get_mac_address(interface)
+
+                # Catalog all the virtfn* files in the device's sysfs directory and the underlying pci address linked by the virtfn files
+                virtfn_files = glob.glob(os.path.join(device_path, "device", "virtfn*"))
+                virtfn = []
+                for virtfn_file in virtfn_files:
+                    virtfn_pci_address = os.path.basename(os.path.realpath(virtfn_file))
+                    virtfn.append(virtfn_pci_address)
+
                 # Store the NIC information in the _physical_nics dictionary
                 _physical_nics[pci_address] = {
                     'pci_address': pci_address,
                     'interface': interface,
                     'device_path': device_path,
                     'subsystem': subsystem,
-                    'device_name': pci_data['Device'],
-                    'driver': pci_data['Driver'],
-                    'module': pci_data['Module'],
-                    'iommu_group': pci_data['IOMMUGroup'],
+                    'device_name': pci_data.get('Device', 'unknown'),
+                    'driver': pci_data.get('Driver','unknown'),
+                    'module': pci_data.get('Module','unknown'),
+                    'iommu_group': pci_data.get('IOMMUGroup','unknown'),
+                    'vendor': pci_data.get('Vendor','unknown'),
                     'sriov_capable': sriov_capable,
                     'sriov_numvfs': sriov_numvfs,
-                    'sriov_totalvfs': sriov_totalvfs
+                    'sriov_totalvfs': sriov_totalvfs,
+                    'mac_address': mac_address,
+                    'virtfn': virtfn
                 }
 
         # Check if the device is a VF network device
@@ -178,13 +199,17 @@ def detect_network_devices():
             parent_path = os.path.realpath(os.path.join(device_path, "device", "physfn"))
             parent_pci_address = os.path.basename(parent_path)
 
+            mac_address = _get_mac_address(vf_interface)
+
             # Store the VF NIC information and parent in the _vf_nics dictionary
             _vf_nics[vf_pci_address] = {
                 'pci_address': vf_pci_address,
                 'interface': vf_interface,
                 'parent_pci_address': parent_pci_address,
-                'device_path': device_path
+                'device_path': device_path,
+                'mac_address': mac_address if mac_address else "unknown",
             }
+    
 
     # print(" - Detection Complete.")
     _detection_complete = True
@@ -269,10 +294,9 @@ def print_vf_nics():
             nic['parent_interface'] = 'Unknown'
         
 
-
     # Define the keys and headers for the VF network devices table
-    keys = ['pci_address', 'interface', 'parent_interface', 'parent_pci_address', 'device_path']
-    headers = ['PCI BDF', 'Interface', 'Parent', 'Parent BDF', 'Device Path']
+    keys = ['pci_address', 'interface', 'mac_address', 'parent_interface', 'parent_pci_address', 'device_path']
+    headers = ['PCI BDF', 'Interface', 'MAC Address', 'Parent', 'Parent BDF', 'Device Path']
 
     # Print the VF network devices table
     print("\nVF Network Devices:")
