@@ -77,7 +77,7 @@ def _persist_for_all_devices():
           _persist_for_device(pf['interface'])
 
 
-def _persist_for_device(network_device: str, target_vfs: int = None):
+def _persist_for_device(network_device: str, target_vfs: Union[int, None] = None):
     """
     Persists the specified number of virtual functions for the specified network device
 

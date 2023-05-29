@@ -43,6 +43,7 @@ script_path="$(readlink -f "$0")"
 script_dir="$(dirname "$script_path")"
 # Set the settings file path relative to the script directory
 settings_file="${script_dir}/${settings_filename}"
+vfnet_exec="${script_dir}/vfnet"
 
 
 # Check if the user has specified the '-f' flag
@@ -158,7 +159,11 @@ while IFS= read -r line || [ -n "$line" ]; do
 
   # Create the specified number of VF devices
   echo "Creating $vf_count VF devices for interface $interface"
-  echo "$vf_count" > "/sys/class/net/$interface/device/sriov_numvfs"
+  # execute the file at vfnet_exec with the parameters "set $interface $vf_count"
+  "$vfnet_exec" set "$interface" "$vf_count"
+  
+
+  # echo "$vf_count" > "/sys/class/net/$interface/device/sriov_numvfs"
 
   # Wait for VFs to be created
   for i in 1 2 3; do

@@ -142,16 +142,11 @@ def _copy_vfnet_files():
 
     # Define the source paths of the vfup and vf.config.example files
     vfup_file = os.path.join(src_dir, 'vfup')
-    print('script: ' + __file__)
     current_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
-    print('current_dir: ' + current_dir)
 
     executable_path = sys.executable
     executable_name = os.path.basename(executable_path)
     executable_dir = os.path.dirname(executable_path)
-    print('executable_path: ' + executable_path)
-    print('executable_dir: ' + executable_dir)
-    # TODO: Install the vfnet release script to the directory as well?
     is_binary = False
     is_zip_bundle = False
     if (executable_name != 'python3' and executable_name != 'python' and __file__.endswith('.pyc') ):
@@ -185,7 +180,7 @@ def _copy_vfnet_files():
             # symlink the executable file to the /usr/bin directory
             os.symlink(os.path.join(_VFNET_INSTALL_DIR, os.path.basename(current_dir)), os.path.join('/usr/bin', 'vfnet'))
         else:
-            print("The current python script is not compiled for independent execution.")
+            print("WARNING: The current python script is not compiled for independent execution. Compile the program first and then run the install script.")
 
     if(is_zip_bundle):
         # Read the contents of the file from the zip bundle
