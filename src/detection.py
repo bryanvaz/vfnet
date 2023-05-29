@@ -322,6 +322,11 @@ def detect_network_devices():
 
     # Go through pfs and check if they have any VFs
     for pf_pci_address, pf in _physical_nics.items():
+        # check if ip_link_output has key pf['interface']
+        if pf['interface'] not in ip_link_output:
+            continue
+        if 'vfinfo_list' not in ip_link_output[pf['interface']]:
+            continue
         ip_link_vfinfo_list = ip_link_output[pf['interface']]['vfinfo_list']
         # iterate through the virtfn dictionary
         for vf_name, virtfn in pf['virtfn'].items():
