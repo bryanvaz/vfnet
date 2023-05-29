@@ -76,20 +76,20 @@ bryan@vfio-bench[~]$ vfnet
 ------ Detecting network devices... ------
  - Detection Complete.
  - 2 physical NICs detected.
- - 4 VF network devices detected.
+ - 3 VF network devices detected.
 
 PF Network Devices:
 PCI BDF        Interface   Subsystem   Description                     Driver   Can VF?   Active VFs   Config VFs   IOMMU Grp   Device Path
 =============  ==========  ==========  ==============================  =======  ========  ===========  ===========  ==========  ========================
-0000:01:00.0   enp1s0f0    pci         Ethernet Controller 10G X550T   ixgbe    Yes       4/63         4/63         15          /sys/class/net/enp1s0f0
+0000:01:00.0   enp1s0f0    pci         Ethernet Controller 10G X550T   ixgbe    Yes       3/63         3/63         15          /sys/class/net/enp1s0f0
 0000:01:00.1   enp1s0f1    pci         Ethernet Controller 10G X550T   ixgbe    Yes       0/63         N/A          16          /sys/class/net/enp1s0f1
 
 VF Network Devices:
-PCI BDF        Interface    MAC Address         Parent     Parent BDF     Device Path
-=============  ===========  ==================  =========  =============  ==========================
-0000:02:10.0   enp1s0f0v0   ca:e1:e1:a0:e6:0f   enp1s0f0   0000:01:00.0   /sys/class/net/enp1s0f0v0
-0000:02:10.2   enp1s0f0v1   5a:a4:56:4c:ff:58   enp1s0f0   0000:01:00.0   /sys/class/net/enp1s0f0v1
-0000:02:10.4   enp1s0f0v2   1e:8c:31:6c:30:03   enp1s0f0   0000:01:00.0   /sys/class/net/enp1s0f0v2
+PCI BDF        Interface    MAC Address         Parent     VF #   Driver     Description             Parent BDF     Device Path
+=============  ===========  ==================  =========  =====  =========  ======================  =============  =======================================
+0000:02:10.0   enp1s0f0v0   ca:e1:e1:a0:e6:0f   enp1s0f0   0      ixgbevf    X550 Virtual Function   0000:01:00.0   /sys/class/net/enp1s0f0v0
+0000:02:10.2   enp1s0f0v1   5a:a4:56:4c:ff:58   enp1s0f0   1      ixgbevf    X550 Virtual Function   0000:01:00.0   /sys/class/net/enp1s0f0v1
+0000:02:10.4   None         1e:8c:31:6c:30:03   enp1s0f0   2      vfio-pci   X550 Virtual Function   0000:01:00.0   /sys/class/net/enp1s0f0v2
 ```
 
 Columns:
@@ -105,8 +105,12 @@ Columns:
   * IOMMU Grp: This is the IOMMU group that the device is in. This is useful for determining which devices can be passed through to a VM together.
   * Device Path: This is the path to the device in sysfs. This is useful for debugging purposes.
 * VF Network Devices:
+  * Interface: This is the name of the interface as it appears in the Linux network stack. When a VF is being used by a VM the interface will be `None`.
   * Mac Address: This is the MAC address of the VF. `vfnet` deterministicly generates the MAC address, so the MAC address will remain constant across reboots and VM startup.
   * Parent: This is the parent device of the VF.
+  * VF #: The index number of the VF on the parent device. This is a required when using `ip` to make changes to the VF.
+  * Driver: This is the driver that is currently bound to the VF. When a VF is being used by a VM the driver will change to `vfio-pci`.
+  * Description: This is the description of the VF as reported by the kernel. Usually this is the name of the device as reported by the manufacturer.
   * Parent BDF: This is the PCI address of the parent device.
 
 ### Creating VFs
