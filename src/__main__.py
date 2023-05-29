@@ -39,7 +39,7 @@ import list_vfs
 import text_help
 import sys
 
-version_number = "0.1.2"
+version_number = "0.1.3"
 
 def print_help():
     """Prints the help information for vfnet"""

@@ -17,13 +17,13 @@ vfnet is a command-line tool for managing virtual functions (VFs) on network dev
 Download `vfnet` locally with one of the following commands:
 
 ```
-curl -LJO https://github.com/bryanvaz/vfnet/releases/download/v0.1.2/vfnet && chmod +x vfnet
+curl -LJO https://github.com/bryanvaz/vfnet/releases/download/v0.1.3/vfnet && chmod +x vfnet
 ```
 
 or
 
 ```
-wget https://github.com/bryanvaz/vfnet/releases/download/v0.1.2/vfnet  && chmod +x vfnet
+wget https://github.com/bryanvaz/vfnet/releases/download/v0.1.3/vfnet  && chmod +x vfnet
 ```
 
 **Usage**
