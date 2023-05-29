@@ -34,7 +34,7 @@ import os
 import subprocess
 import copy
 import glob
-from typing import Dict
+from typing import Dict, List, Union, TypedDict
 
 import tables as tables
 import install_vfnet as install_vfnet
@@ -43,10 +43,38 @@ import vfup as vfup
 NIC_DIR = "/sys/class/net"
 LSPCI_OUTPUT = []
 
+class PhysicalNIC(TypedDict):
+    pci_address: str
+    interface: str
+    device_path: str
+    subsystem: str
+    device_name: str
+    driver: str
+    module: str
+    iommu_group: str
+    vendor: str
+    sriov_capable: bool
+    sriov_numvfs: int
+    sriov_totalvfs: int
+    mac_address: str
+    virtfn: List[str]
+
+class VFNIC(TypedDict):
+    pci_address: str
+    interface: str
+    parent_pci_address: str
+    device_path: str
+    mac_address: Union[str, None]
+    device_name: str
+    driver: str
+    module: str
+    iommu_group: str
+    vendor: str
+
 # Declare a list to store NIC information
 # Do not use directly except from within this file
-_physical_nics: Dict[str, dict] = {}
-_vf_nics: Dict[str, dict] = {}
+_physical_nics: Dict[str, PhysicalNIC] = {}
+_vf_nics: Dict[str, VFNIC] = {}
 _detection_complete = False
 
 def detection_complete():
@@ -57,6 +85,15 @@ def detection_complete():
         bool: True if detection has already been run.
     """
     return _detection_complete
+
+def clear_cache():
+    """
+    Clear the cache of detected network devices.
+    """
+    global _detection_complete, _physical_nics, _vf_nics
+    _detection_complete = False
+    _physical_nics = {}
+    _vf_nics = {}
 
 def physical_nics():
     """
@@ -97,6 +134,47 @@ def get_pf(network_device):
             return copy.deepcopy(nic)
     return None
 
+def get_vf(network_device):
+    """
+    Get the virtual function (VF) for a given network device.
+    Assumes that detection already have been run.
+
+    Args:
+        network_device (str): PCI address or Interface Name of 
+                                the network device to manage.
+    
+    Returns:
+        dict: A copy VF for the given network device. None if not found.
+    """
+    # Loop through the physical nics checking both th pci_address
+    # and interface keys for a match
+    for vf in _vf_nics.values():
+        if vf["interface"] == network_device:
+            return copy.deepcopy(vf)
+        elif vf["pci_address"] == network_device:
+            return copy.deepcopy(vf)
+    return None
+
+def get_module_of_vf_by_pf(pf_interface_name: str, vf_index: int) -> str:
+    """
+    Get the kernel module name of a VF network device using only its parent and vf number sysfs
+
+    Args:
+        interface_name (str): The interface name of the VF network device (e.g. eth0).
+    """
+    # verify that the interface exists via sysfs
+    if not os.path.exists(os.path.join(NIC_DIR, pf_interface_name)):
+        raise ValueError(f"Interface '{pf_interface_name}' does not exist.")
+    
+    # verify that the interface has a vf at the index specified
+    if not os.path.exists(os.path.join(NIC_DIR, pf_interface_name, "device", "virtfn" + str(vf_index))):
+        raise ValueError(f"Interface '{pf_interface_name}' does not have a VF at index {vf_index}.")
+
+    # Get the kernel module name of the VF network device
+    module_name = os.path.basename(os.path.realpath(os.path.join(NIC_DIR, pf_interface_name, "device", "virtfn" + str(vf_index), "driver", "module")))
+    print("module_name: " + module_name)
+    return module_name
+
 def _get_mac_address(device: str) -> str:
     """
     Returns the MAC address of the specified VF network device.
@@ -104,7 +182,7 @@ def _get_mac_address(device: str) -> str:
     with open(f'/sys/class/net/{device}/address', 'r') as f:
         mac_address = f.read().strip()
     return mac_address
-    
+
 def detect_network_devices():
     global _detection_complete, _physical_nics, _vf_nics
     # print("------ Detecting network devices... ------")
@@ -165,6 +243,7 @@ def detect_network_devices():
 
                 # Catalog all the virtfn* files in the device's sysfs directory and the underlying pci address linked by the virtfn files
                 virtfn_files = glob.glob(os.path.join(device_path, "device", "virtfn*"))
+                virtfn_files.sort()
                 virtfn = []
                 for virtfn_file in virtfn_files:
                     virtfn_pci_address = os.path.basename(os.path.realpath(virtfn_file))
@@ -201,6 +280,16 @@ def detect_network_devices():
 
             mac_address = _get_mac_address(vf_interface)
 
+            # Execute lspci command and store the output
+            lspci_output = subprocess.run(["lspci", "-vmmks", vf_pci_address], capture_output=True, text=True)
+            lines = lspci_output.stdout.strip().split('\n')
+
+            pci_data = {}
+
+            for line in lines:
+                key, value = line.strip().split(':', 1)
+                pci_data[key] = value.strip()
+
             # Store the VF NIC information and parent in the _vf_nics dictionary
             _vf_nics[vf_pci_address] = {
                 'pci_address': vf_pci_address,
@@ -208,6 +297,11 @@ def detect_network_devices():
                 'parent_pci_address': parent_pci_address,
                 'device_path': device_path,
                 'mac_address': mac_address if mac_address else "unknown",
+                'device_name': pci_data.get('Device', 'unknown'),
+                'driver': pci_data.get('Driver','unknown'),
+                'module': pci_data.get('Module','unknown'),
+                'iommu_group': pci_data.get('IOMMUGroup','unknown'),
+                'vendor': pci_data.get('Vendor','unknown'),
             }
     
 

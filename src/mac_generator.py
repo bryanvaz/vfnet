@@ -6,8 +6,19 @@ import bcrypt
 import hashlib
 import base64
 
-def generate_mac(pf_mac_address, vf_index, pf_devcie_name):
+def generate_mac(pf_mac_address: str, vf_index: int, pf_devcie_name: str) -> str:
+    """
+    Generates a deterministic and secure MAC address for a VF of a given device.
 
+    Args:
+        pf_mac_address (str): The MAC address of the physical function (PF) of the device.
+        vf_index (int): The zero-index of the virtual function (VF) for which to generate the MAC address.
+        pf_devcie_name (str): The name of the device.
+
+    Returns:
+        str: The generated MAC address in the format "xx:xx:xx:xx:xx:xx".
+    """
+    
     # Calculate deterministic salt based on device name
     salt = base64.urlsafe_b64encode(hashlib.sha256(pf_devcie_name.encode()).digest()).decode()[:23].replace('-', 'a').replace('_', 'b')
     salt_str = '$2b${}${}'.format("12",salt)

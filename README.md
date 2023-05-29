@@ -105,13 +105,13 @@ Columns:
   * IOMMU Grp: This is the IOMMU group that the device is in. This is useful for determining which devices can be passed through to a VM together.
   * Device Path: This is the path to the device in sysfs. This is useful for debugging purposes.
 * VF Network Devices:
-  * Mac Address: This is the MAC address of the VF. Most drivers will deterministicly generate the MAC address, so the MAC address will remain constant across reboots.
+  * Mac Address: This is the MAC address of the VF. `vfnet` deterministicly generates the MAC address, so the MAC address will remain constant across reboots and VM startup.
   * Parent: This is the parent device of the VF.
   * Parent BDF: This is the PCI address of the parent device.
 
 ### Creating VFs
 
-To create VFs, you can use the `vfnet set` command. This command takes a single PF interface name, and the number of VFs you want to create for that PF. For example, to create 4 VFs for the PF `enp1s0f0` you would run:
+To create VFs, you can use the `vfnet `set` command. This command takes a single PF interface name, and the number of VFs you want to create for that PF. For example, to create 4 VFs for the PF `enp1s0f0` you would run:
 ``` 
 vfnet set enp1s0f0 4
 ```
@@ -139,6 +139,7 @@ The following hardware has been tested for VF support. If you have a working sys
 
 **Known Issues**
 * Certain consumer and business prebuilds do not support a portion of the Resizable BAR(ReBAR) spec at the BIOS level that is required by Linux to create VFs. As a result, even though the BIOS states explicit support for SR-IOV and VT-d, the NIC supports VFIO, and Linux reports VF support, when you try to create a VF, the system will report an error in changing the BAR space.
+* There is a known "bug" where Intel drivers will change the MAC address of a VF when a VM boots if the VF's MAC address is not manually set. `vfnet` overcomes this issue by resetting the MAC address on VF creation. See https://www.reddit.com/r/VFIO/comments/rdd7jo/assign_mac_address_to_sriov_nic_running_as_vfiopci/ for more details.
 
 ## Contributing
 
