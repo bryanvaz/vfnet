@@ -34,7 +34,7 @@ import os
 import subprocess
 import copy
 import glob
-from typing import Dict, List, Union, TypedDict
+from typing import Dict, List, Union, TypedDict, List, Union, TypedDict
 
 import tables as tables
 import install_vfnet as install_vfnet
@@ -185,7 +185,7 @@ def _get_mac_address(device: str) -> str:
     with open(f'/sys/class/net/{device}/address', 'r') as f:
         mac_address = f.read().strip()
     return mac_address
-
+    
 def detect_network_devices():
     global _detection_complete, _physical_nics, _vf_nics
     # print("------ Detecting network devices... ------")
