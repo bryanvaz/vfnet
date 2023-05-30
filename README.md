@@ -1,6 +1,6 @@
-# vfnet ![vfnet version](https://img.shields.io/badge/version-v0.1.2-blue.svg)
+# vfnet [![vfnet release](https://img.shields.io/github/v/release/bryanvaz/vfnet)](https://github.com/bryanvaz/vfnet/releases)
 
-vfnet is a command-line tool for managing virtual functions (VFs) on network devices in Linux. It provides functionalities to list network devices, set the number of VFs for specific network devices, and persist the number of VFs across reboots. This allows you to use your network card as a hardware switch for your virtual machines and containers.
+vfnet is a command-line tool for managing virtual functions (VFs) on network devices in Linux. It can list network devices, set the number of VFs for specific network devices, and persist the number of VFs across reboots. This allows you to use your network card as a hardware switch for your virtual machines and containers, or partition your VMs into segregated networks.
 
 ## Features
 
@@ -37,7 +37,7 @@ You can use the `vfnet` command-line tool to manage virtual functions on network
   
 - Create 4 VFs for a specific network device:
   ```
-  ./vfnet set eth0 4
+  sudo ./vfnet set eth0 4
   ```
 
 - List network devices again to see new VFs and their information: 
@@ -51,17 +51,17 @@ If you install vfnet on your system, you can persist your vf configuration acros
 
 - Install vfnet into $PATH and install boot-time service
   ```
-  ./vfnet install
+  sudo ./vfnet install
   ```
 
 - Persist the current configuration of VFs for all devices
   ```
-  vfnet persist
+  sudo vfnet persist
   ```
 
 - Persist a specific number of VFs for a specific network device:
   ```
-  vfnet persist eth0 4
+  sudo vfnet persist eth0 4
   ```
 
 Calling `vfnet persist` will not change the current VF configuration until a reboot; conversely `vfnet set` will change the VF configuration, but will not persist the configuration across reboots.
@@ -69,7 +69,6 @@ Calling `vfnet persist` will not change the current VF configuration until a reb
 For more detailed information on the usage and command options, please run `vfnet -h [COMMAND]`
 
 **Notes:**
-* _Currently VFs are created with a random MAC every time._
 * _VFs do not automatically activate their links on boot as it is assumed you are going to use them to pass-through to a VM. To give your VM high-speed connectivity to the host, you can configure one of the VFs to come up on boot with the stock Linux network stack, just like any other network interface. VFs boot-time creation service is configured to enable VFs before the Linux network stack attempts to raise network interfaces._
 
 ## Usage
@@ -131,9 +130,9 @@ PCI BDF        Interface    MAC Address         Parent     VF #   Driver     Des
 
 ### Creating VFs
 
-To create VFs, you can use the `vfnet `set` command. This command takes a single PF interface name, and the number of VFs you want to create for that PF. For example, to create 4 VFs for the PF `enp1s0f0` you would run:
+To create VFs, you can use the `vfnet set` command. This command takes a single PF interface name, and the number of VFs you want to create for that PF. For example, to create 4 VFs for the PF `enp1s0f0` you would run:
 ``` 
-vfnet set enp1s0f0 4
+sudo vfnet set enp1s0f0 4
 ```
 **WARNING:** If the device already has VFs configured, this command will delete all existing VFs and create the new number of VFs specified. This is because the Linux network stack does not support dynamically changing the number of VFs on a PF.
 
@@ -172,7 +171,7 @@ Contributions are welcome! If you find any issues or have suggestions for improv
 
 ## License
 
-vfnet is released under the [GNU Lesser General Public License v3.0](COPYING.LESSER) (LGPLv3). See the [LICENSE](COPYING.LESSER) file for more details.
+vfnet is released under the [GNU Lesser General Public License v3.0](COPYING.LESSER) (LGPLv3). See the [COPYING.LESSER](COPYING.LESSER) file for more details.
 
 ## Author
 
