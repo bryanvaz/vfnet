@@ -23,7 +23,7 @@ curl -LJO https://github.com/bryanvaz/vfnet/releases/download/v0.1.3/vfnet && ch
 or
 
 ```
-wget https://github.com/bryanvaz/vfnet/releases/download/v0.1.3/vfnet  && chmod +x vfnet
+wget https://github.com/bryanvaz/vfnet/releases/download/v0.1.3/vfnet && chmod +x vfnet
 ```
 
 **Usage**
