@@ -38,6 +38,9 @@ import persist_vfs
 import list_vfs
 import text_help
 import sys
+import importlib
+
+MODULE_DEPS = ['bcrypt']
 
 version_number = "0.1.4-develop"
 
@@ -78,6 +81,22 @@ def print_version():
     """Prints the version of vfnet"""
     print("{}".format(version_number))
 
+def check_module_dependencies():
+    missing_modules = []
+    for module_name in MODULE_DEPS:
+        try:
+            importlib.import_module(module_name)
+        except ModuleNotFoundError:
+            missing_modules.append(module_name)
+
+    if missing_modules:
+        print("The following python modules are missing. Please install them with pip before continuing:")
+        for module_name in missing_modules:
+            print(module_name)
+        sys.exit()
+    #else:
+        #print("All modules are installed.")
+
 def main():
     # The first parameter that is not a switch is the command
     command = None
@@ -106,19 +125,23 @@ def main():
 
     # If no arguments are passed or -l or --list is passed, detect network devices
     if len(sys.argv) == 1 or command == "list":
+        check_module_dependencies()
         # Run the 'install' function from the `install_vfnet` module
         list_vfs.list_network_devices()
         sys.exit()
 
     if command == "install":
+        check_module_dependencies()
         # Run the 'install' function from the `install_vfnet` module
         install_vfnet.install()
         sys.exit()
 
     elif command == "create" or command == "set":
+        check_module_dependencies()
         set_vfs.set_command(sys.argv[2:])
 
     elif command == "persist":
+        check_module_dependencies()
         persist_vfs.persist_command(sys.argv[2:])
 
     else:
