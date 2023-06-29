@@ -10,6 +10,10 @@ if [[ "$1" == "release" ]]; then
       ./dist/vfnet.bin \
       ./dist/vfnet.dev.bin
 else
+    # Check if build prereq exists
+    if ! command -v docker >/dev/null 2>&1; then echo "docker not found. Please install docker and try again"; exit 1; fi
+    if ! command -v zip >/dev/null 2>&1; then echo "zip not found. Please install zip and try again"; exit 1; fi
+
     # Build the Docker image
     docker build -t vfnet_build_container -f Dockerfile .
 

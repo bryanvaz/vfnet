@@ -226,21 +226,33 @@ def _install_service_unit():
     service_dest = os.path.join('/lib/systemd/system', _VFNET_SERVICE_FILE_NAME)
     service_symlink = os.path.join('/etc/systemd/system', _VFNET_SERVICE_FILE_NAME)
 
+    # Check if the service file exists already
+    #if os.path.exists(service_dest):
+    #    print('Existing service file found. This file will be overwritten.') 
+
     # Write the service file to the /lib/systemd/system directory
     with open(service_dest, 'w') as f:
         f.write(vfnet_create_service_file_text)
 
+    # Newer versions of systemd do not require the presense of the service
+    # file in the '/etc/systemd/system' directory and will link from the 
+    # 'lib/systemd/system' directory
+    # Failure was observed in systemctl 252 (252.5-2~bpo11+1)
+    # For now, the symlink functionality will be deprecated in case
+    # a supported systemctl version requires it 
+
     # check if the symlink already exists and is a file or is a symlink to another location
     # meaning the user has overridden the default service file
-    if os.path.lexists(service_symlink):
-        if os.path.realpath(service_symlink) != os.path.realpath(service_dest):
-            print("The vfnet-create service file has been overridden by user in {}. Does not point to expected location {}".format(service_symlink, service_dest))
-            print("The overridden vfnet-create service file has not been changed.")
-            return
+    if False:
+        if os.path.lexists(service_symlink):
+            if os.path.realpath(service_symlink) != os.path.realpath(service_dest):
+                print("The vfnet-create service file has been overridden by user in {}. Does not point to expected location {}".format(service_symlink, service_dest))
+                print("The overridden vfnet-create service file has not been changed.")
+                return
 
-    # Create a symlink to the service file in the /etc/systemd/system directory
-    if not os.path.lexists(service_symlink):
-        os.symlink(service_dest, service_symlink)
+        # Create a symlink to the service file in the /etc/systemd/system directory
+        if not os.path.lexists(service_symlink):
+            os.symlink(service_dest, service_symlink)
 
 def _is_service_enabled():
     # Check if the service is already enabled
@@ -249,17 +261,24 @@ def _is_service_enabled():
 
 def _disable_service():
     # Check if the service is already enabled
-    if _is_service_enabled():
-        os.system('systemctl enable {}'.format(_VFNET_SERVICE_NAME))
-        return
+    #if _is_service_enabled():
+    print(f"Disabling sevice {_VFNET_SERVICE_NAME} if present ...")
+    command = f"systemctl disable {_VFNET_SERVICE_NAME}"
+    print(f"command: {command}")
+    # os.system('systemctl enable {}'.format(_VFNET_SERVICE_NAME))
+    exit_code = subprocess.call(command, shell=True)
+    return
 
 def _enable_service():
-    if _is_service_enabled():
-        print("The vfnet-create service is already enabled.")
-        return
+    #if _is_service_enabled():
+    #    print("The vfnet-create service is already enabled.")
+    #    return
     
     # Enable the vf-network-create service
-    os.system('systemctl enable {}'.format(_VFNET_SERVICE_NAME))
+    print(f"Enabling service {_VFNET_SERVICE_NAME}...")
+    command = f"systemctl enable {_VFNET_SERVICE_NAME}"
+    exit_code = subprocess.call(command, shell=True)
+    # os.system('systemctl enable {}'.format(_VFNET_SERVICE_NAME))
 
 def _set_permissions():
     # Set the execute permissions for the vfup file
