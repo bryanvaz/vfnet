@@ -42,7 +42,7 @@ import importlib
 
 MODULE_DEPS = ['bcrypt']
 
-version_number = "0.1.4-develop"
+version_number = "0.1.4"
 
 def print_help():
     """Prints the help information for vfnet"""
